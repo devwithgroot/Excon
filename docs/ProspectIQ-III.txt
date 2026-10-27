@@ -1,0 +1,225 @@
+ProspectIQ — MVP Technology Stack & Development Setup
+Version: 1.0
+Status: Initial working document
+
+1. PURPOSE
+
+This document defines the minimum practical technology stack and development approach for building the ProspectIQ MVP. The goal is to build a working product in small modules, test each module before moving forward, and add complexity only when a real requirement appears.
+
+ProspectIQ helps a seller research a potential customer, collect and validate evidence, understand the fit between the lead and the seller's offering, generate a summarized report, identify relevant employees, and prepare personalized outreach drafts for human review.
+
+2. MVP TECHNOLOGY STACK
+
+Backend
+- Python: Main programming language for application logic, research tools and AI workflows.
+- FastAPI: Build the backend API.
+- Pydantic: Validate API inputs, tool results, research data and structured model outputs.
+
+AI and research
+- LangGraph: Coordinate the lead-research workflow, including repeated research when information is missing.
+- LangChain: Use only where it simplifies model/provider integration. It is not required for every part of the application.
+- Existing or selected search, website-reading and other data providers: Add integrations as each tool is implemented.
+
+Frontend
+- React: Build the user interface.
+- TypeScript: Recommended for clearer types and fewer frontend mistakes.
+
+Database
+- PostgreSQL: The one main database for users, seller profiles, research jobs, evidence, reports and outreach drafts.
+- SQLAlchemy: Python library used by the backend to work with PostgreSQL.
+- Alembic: Database migration tool, to manage schema changes as the application evolves.
+
+Authentication
+- pwdlib with Argon2id: Hash passwords before storing them. Never store plaintext passwords.
+- FastAPI dependencies: Protect endpoints and check the authenticated user.
+- A simple secure session approach: Keep users logged in safely. For a browser-based React app, use secure, HttpOnly cookies with appropriate CSRF protection.
+
+Testing
+- pytest: Run automated tests.
+- FastAPI TestClient or HTTPX: Test API endpoints.
+
+Local development and deployment
+- Docker and Docker Compose: Run the application and PostgreSQL consistently in development and on the VPS.
+- Git and GitHub: Version control and collaboration.
+- VPS with HTTPS: Host the MVP after the application is ready.
+
+3. WHAT WE WILL NOT ADD AT THE START
+
+Do not add these unless a concrete requirement justifies them:
+- A second or third database.
+- Redis or a separate job queue before long-running tasks require one.
+- A separate vector database before we have a real retrieval use case that needs it.
+- Kubernetes or microservices.
+- A complex multi-role enterprise permission system.
+- Multiple monitoring platforms or elaborate infrastructure.
+- A separate authentication provider unless we decide not to manage passwords ourselves.
+
+PostgreSQL is the database. SQLAlchemy is the database-access library; it is not a database. LangChain and LangGraph are optional framework components, not replacements for our own business rules.
+
+4. PRODUCT MODULES
+
+Module 1 — Authentication and User Management
+Purpose:
+- Register and log in users.
+- Hash passwords with Argon2id.
+- Keep users authenticated with secure sessions.
+- Protect APIs and ensure a user can access only their own records.
+- Support basic profile and account status management.
+
+Core data:
+- User
+- Session, if required by the chosen session implementation
+
+Module 2 — Tools and Integrations
+Purpose:
+- Provide reusable tools for web search, website reading, company information and people discovery as required.
+- Give tools consistent input and output schemas.
+- Handle timeouts, provider errors and limited retries.
+- Keep provider-specific code separate from research workflow logic.
+- Record source URLs and retrieval metadata for research results.
+
+Module 3 — Lead Research and Orchestration
+Purpose:
+- Accept a target company and research goal.
+- Define the fields that need to be researched.
+- Find missing, weak, stale or conflicting information.
+- Choose and call the relevant tools.
+- Extract structured claims from results.
+- Validate claims and preserve their evidence and source references.
+- Update research state and repeat targeted research when useful.
+- Stop when required fields are sufficiently covered or the research budget is exhausted.
+- Report incomplete fields instead of pretending research is complete.
+
+Module 4 — Seller Company Profile
+Purpose:
+- Store the seller's company, products, services and ideal customer profile (ICP).
+- Support document upload and extraction when implemented.
+- Let the seller review and correct extracted facts before they become approved profile data.
+- Keep the profile available to reporting and draft generation.
+
+Module 5 — Summarized Report Generation
+Purpose:
+- Combine the approved seller profile with the lead's research.
+- Calculate explainable lead qualification and seller-fit scores.
+- Summarize useful signals, risks and potential opportunities.
+- Include relevant employees and their roles when supported by available data.
+- Link important conclusions to evidence.
+- Show missing information and uncertainty clearly.
+
+Module 6 — Personalized Draft Generation
+Purpose:
+- Select relevant employees based on their professional roles.
+- Generate a distinct draft for each relevant recipient.
+- Personalize only with facts supported by research.
+- Validate drafts and preserve their versions.
+- Let the user review, edit, approve or reject drafts.
+- Keep draft generation separate from actually sending messages.
+
+Module 7 — Final Testing and Deployment
+Purpose:
+- Run complete end-to-end tests across all modules.
+- Test API behavior, authentication, data isolation, database operations and failure handling.
+- Check research quality, evidence traceability, report correctness and draft quality.
+- Test realistic performance and resource use.
+- Deploy to the VPS with HTTPS, configuration and secrets managed safely.
+- Verify backups, health checks and a practical rollback/recovery procedure.
+
+5. SIMPLE ARCHITECTURE
+
+React frontend
+    |
+    v
+FastAPI backend
+    |
+    +--> Authentication and access checks
+    |
+    +--> Application services for each product module
+    |
+    +--> LangGraph research workflow
+    |       |
+    |       +--> Tool interfaces
+    |               |
+    |               +--> Search / website / company / people providers
+    |
+    +--> SQLAlchemy
+            |
+            v
+       PostgreSQL
+
+Uploaded documents, when supported, should be stored in a suitable file-storage location rather than as large binary objects in ordinary relational rows. The exact storage option can be decided when document upload is implemented.
+
+6. PASSWORD AND AUTHENTICATION RULES
+
+- Never store a plaintext password.
+- Hash passwords with Argon2id through a maintained library such as pwdlib.
+- Verify submitted passwords against the stored hash; do not decrypt passwords.
+- Use HTTPS in deployed environments.
+- Keep secrets out of source control and logs.
+- Protect all private API routes.
+- Check record ownership on the backend, not only in the frontend.
+- Use generic login errors and basic rate limiting.
+- Implement password reset and email verification if required for the first release.
+- Do not invent a custom cryptographic scheme.
+
+7. ENGINEERING RULES
+
+- Keep the application as a modular monolith for the MVP; do not split it into microservices.
+- Keep API routes, business logic, database access and external-provider adapters separate.
+- Use Pydantic schemas at system boundaries.
+- Keep research claims linked to evidence and source references.
+- Make scoring calculations explicit and testable; do not let an LLM silently determine numerical scores.
+- Treat webpages and uploaded documents as untrusted content.
+- Limit research duration, tool calls and retries to prevent runaway jobs or costs.
+- Add new libraries only when they solve a concrete problem.
+- Keep configuration separate from code.
+- Document decisions that materially affect data models, security or module interfaces.
+
+8. TESTING RULE
+
+Every module must be tested when it is completed. Do not wait until the final phase to test everything.
+
+For each module:
+- Test the main successful workflow.
+- Test invalid inputs and expected failures.
+- Test access control where relevant.
+- Test integration boundaries.
+- Fix defects and add regression tests before marking the module complete.
+
+At the end, run a full end-to-end suite covering registration, seller setup, lead research, evidence validation, report generation, draft approval and user-data isolation.
+
+9. LATER UPGRADES — ONLY WHEN NEEDED
+
+1. Background job queue (for example, Redis plus a worker):
+   Add when research and document processing take too long for normal API requests or need reliable retries and recovery.
+
+2. Object storage for uploaded files:
+   Add when seller document uploads become part of the product. Choose a suitable local or S3-compatible option based on deployment needs.
+
+3. CI/CD pipeline:
+   Add early if practical, or once the basic test suite exists, so tests run automatically before deployment.
+
+4. Error monitoring and operational metrics:
+   Add before the MVP is exposed to real users, so production failures and slow research jobs can be diagnosed.
+
+5. Vector search:
+   Add only if a concrete feature needs semantic retrieval over a large collection of stored documents or evidence. PostgreSQL can handle the initial structured evidence store.
+
+6. Managed authentication provider:
+   Consider if account recovery, social login, email verification or identity maintenance becomes too much to operate safely ourselves.
+
+Do not add Kubernetes, microservices or extra databases merely because they are common in larger systems.
+
+10. STARTING ORDER
+
+1. Set up the repository, Python environment, FastAPI application and PostgreSQL connection.
+2. Add SQLAlchemy models and Alembic migrations.
+3. Implement Module 1: authentication and protected APIs.
+4. Test Module 1 before moving forward.
+5. Implement Module 2: the initial tool interfaces and integrations.
+6. Implement Module 3: gap-driven research and evidence validation.
+7. Continue through Modules 4, 5 and 6, testing each as it is completed.
+8. Complete Module 7: full-system testing and VPS deployment.
+
+FINAL PRINCIPLE
+
+Build the smallest reliable version first. Keep the architecture modular, protect user data, preserve research evidence, test every module, and introduce new infrastructure only when a real product requirement calls for it.

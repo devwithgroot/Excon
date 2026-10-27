@@ -1,0 +1,6 @@
+Alembic migrations for ProspectIQ.
+
+Create a revision after adding SQLAlchemy models:
+
+    alembic revision --autogenerate -m "describe the change"
+    alembic upgrade head
