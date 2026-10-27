@@ -243,7 +243,7 @@ docker compose up --build
 Build the working product without auth:
 
 1. **Seller profile** — one local seller: company, products, ICP.
-2. **Tools** — Tavily, website reader, Prospeo, MLX client.
+2. **Tools** — done; see [Module-2.md](Module-2.md).
 3. **Research** — gap-driven loop, evidence store, honest gaps.
 4. **Reports** — Python scores + LLM narrative with evidence links.
 5. **Drafts** — decision-makers and channel drafts; review/edit/approve, no send.
