@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import health, research, sellers
+from app.api.routes import health, reports, research, sellers
 from app.config import get_settings
 
 
@@ -22,6 +22,7 @@ def create_app() -> FastAPI:
     application.include_router(health.router)
     application.include_router(research.router)
     application.include_router(sellers.router)
+    application.include_router(reports.router)
     return application
 
 
