@@ -2,13 +2,13 @@
 
 Evidence-driven B2B sales intelligence, built from scratch in this repo. Seller setup, research, reports, and outreach drafts. Authentication and workspaces come later.
 
-What exists today: [docs/Module-0.md](docs/Module-0.md) (scaffold). Database persistence: [docs/Module-0-database.md](docs/Module-0-database.md).
+What exists today: [docs/Module-0.md](docs/Module-0.md) (scaffold), [docs/Module-2.md](docs/Module-2.md) (tools), [docs/Module-3.md](docs/Module-3.md) (research), [docs/Module-4.md](docs/Module-4.md) (seller profile), [docs/Module-5.md](docs/Module-5.md) (report), [docs/Module-6.md](docs/Module-6.md) (outreach drafts). Database persistence: [docs/Module-0-database.md](docs/Module-0-database.md).
 
 Product specs in `docs/`: I (workflow + LLD), II (module blueprint), III (MVP stack).
 
 ## Stack
 
-- Backend: Python, FastAPI, Pydantic, SQLAlchemy, Alembic
+- Backend: Python, FastAPI, Pydantic, LangChain, LangGraph, SQLAlchemy, Alembic
 - Database: PostgreSQL
 - Frontend: React + TypeScript (Vite)
 - Providers: MLX (Qwen), Tavily, Prospeo — configured in `.env`

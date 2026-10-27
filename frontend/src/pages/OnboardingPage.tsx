@@ -15,6 +15,10 @@ const FEATURES = [
     title: "Fit report",
     body: "You get a scored briefing: pursue, consider, or deprioritize — with reasons tied to your approved offering.",
   },
+  {
+    title: "Person-wise drafts",
+    body: "Then we write a LinkedIn connect note and WhatsApp for each decision-maker, from their role and the last stretch of company facts.",
+  },
 ];
 
 export function OnboardingPage() {
@@ -55,8 +59,8 @@ export function OnboardingPage() {
         <p className="eyebrow">Briefing desk</p>
         <h1>Research a company the way a careful seller would.</h1>
         <p className="lede">
-          First we lock your company profile. Then we research a lead and tell
-          you whether that lead is worth conversion time.
+          First we lock your company profile. Then we research a lead, score
+          the fit, and write person-wise outreach drafts for you to review.
         </p>
         <ul className="features">
           {FEATURES.map((feature) => (
