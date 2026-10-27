@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Shell } from "./components/Shell";
+import { DraftsPage } from "./pages/DraftsPage";
 import { LeadPage } from "./pages/LeadPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { ProfileReviewPage } from "./pages/ProfileReviewPage";
@@ -16,6 +17,7 @@ export default function App() {
             <Route path="/profile" element={<ProfileReviewPage />} />
             <Route path="/lead" element={<LeadPage />} />
             <Route path="/run" element={<RunPage />} />
+            <Route path="/drafts" element={<DraftsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

@@ -32,7 +32,7 @@ export function LeadPage() {
 
   return (
     <main className="narrow">
-      <p className="eyebrow">Step 3 of 4 · Lead</p>
+      <p className="eyebrow">Step 3 of 5 · Lead</p>
       <h1>Who should we research?</h1>
       <p className="lede">
         Scoring will use your approved profile for <strong>{seller.companyName}</strong>

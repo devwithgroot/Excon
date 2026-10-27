@@ -10,6 +10,7 @@ from app.domain.collected_research import (
 from app.domain.evidence import EvidenceItem, Freshness, SourceType
 from app.domain.gap import GapDecision, GapVerdict
 from app.domain.merge import merge_research
+from app.domain.outreach import OutreachBatch, OutreachDraft
 from app.domain.report import LeadReportBody, LeadScores
 from app.domain.seller_profile import SellerICP, SellerProfile
 from app.domain.tool_contract import DocumentInput, ResearchTool, ToolRequest, ToolResult
@@ -27,6 +28,8 @@ __all__ = [
     "LeadScores",
     "SellerICP",
     "NewsItem",
+    "OutreachBatch",
+    "OutreachDraft",
     "ParameterStatus",
     "PersonRecord",
     "ResearchTool",

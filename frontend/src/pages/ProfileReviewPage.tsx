@@ -244,7 +244,7 @@ export function ProfileReviewPage() {
 
   return (
     <main className="narrow wide-form">
-      <p className="eyebrow">Step 2 of 4 · Approve your profile</p>
+      <p className="eyebrow">Step 2 of 5 · Approve your profile</p>
       <h1>Is this what you sell?</h1>
       <p className="lede">
         Check the extracted facts. Fill anything blank. You cannot research a

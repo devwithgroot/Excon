@@ -5,6 +5,7 @@ const STEPS = [
   { to: "/profile", label: "Approve profile" },
   { to: "/lead", label: "Lead" },
   { to: "/run", label: "Report" },
+  { to: "/drafts", label: "Drafts" },
 ];
 
 export function Shell() {
