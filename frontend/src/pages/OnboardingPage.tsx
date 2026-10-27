@@ -4,16 +4,16 @@ import { useSession } from "../session";
 
 const FEATURES = [
   {
-    title: "Know the seller",
-    body: "We start with you — your company, site, and any docs you already have.",
+    title: "Approve what you sell",
+    body: "We extract a draft from your site. You correct it and approve it before any lead is scored.",
   },
   {
     title: "Research the lead",
     body: "Then we gather public evidence on the company you want to pursue.",
   },
   {
-    title: "Evidence-backed report",
-    body: "You get a briefing: signals, fit, gaps, and what to say next. Facts stay tied to sources.",
+    title: "Fit report",
+    body: "You get a scored briefing: pursue, consider, or deprioritize — with reasons tied to your approved offering.",
   },
 ];
 
@@ -39,13 +39,14 @@ export function OnboardingPage() {
   function onSubmit(event: FormEvent) {
     event.preventDefault();
     const site = companyWebsite.trim();
+    const website = /^https?:\/\//i.test(site) ? site : `https://${site}`;
     setSeller({
       name: name.trim(),
       companyName: companyName.trim(),
-      companyWebsite: /^https?:\/\//i.test(site) ? site : `https://${site}`,
+      companyWebsite: website,
       documents,
     });
-    navigate("/lead");
+    navigate("/profile");
   }
 
   return (
@@ -54,8 +55,8 @@ export function OnboardingPage() {
         <p className="eyebrow">Briefing desk</p>
         <h1>Research a company the way a careful seller would.</h1>
         <p className="lede">
-          Tell us who you are. Add a lead. Watch the work unfold — your profile,
-          their details, then a report you can actually use.
+          First we lock your company profile. Then we research a lead and tell
+          you whether that lead is worth conversion time.
         </p>
         <ul className="features">
           {FEATURES.map((feature) => (
@@ -70,7 +71,7 @@ export function OnboardingPage() {
       <form className="panel" onSubmit={onSubmit}>
         <div className="panel-head">
           <h2>Your company</h2>
-          <p>Required to match later research to what you actually sell.</p>
+          <p>Next screen: review the extracted profile and approve it.</p>
         </div>
 
         <label>
@@ -141,7 +142,7 @@ export function OnboardingPage() {
         </div>
 
         <button className="primary" type="submit">
-          Continue to lead
+          Review and approve profile
         </button>
       </form>
     </main>

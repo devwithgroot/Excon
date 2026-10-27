@@ -16,6 +16,8 @@ export type SellerProfile = {
 
 export type LeadTarget = {
   companyName: string;
+  companyWebsite?: string;
+  companyDomain?: string;
 };
 
 export type StoredSeller = {
@@ -28,24 +30,30 @@ export type StoredSeller = {
 export type StoredSession = {
   seller: StoredSeller | null;
   lead: LeadTarget | null;
+  sellerId: string | null;
+  sellerApproved: boolean;
+  runId: string | null;
 };
 
 const STORAGE_KEY = "excon-session";
 
 export function readStored(): StoredSession {
   if (typeof window === "undefined") {
-    return { seller: null, lead: null };
+    return { seller: null, lead: null, sellerId: null, sellerApproved: false, runId: null };
   }
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { seller: null, lead: null };
+    if (!raw) return { seller: null, lead: null, sellerId: null, sellerApproved: false, runId: null };
     const parsed = JSON.parse(raw) as StoredSession;
     return {
       seller: parsed.seller ?? null,
       lead: parsed.lead ?? null,
+      sellerId: parsed.sellerId ?? null,
+      sellerApproved: parsed.sellerApproved ?? false,
+      runId: parsed.runId ?? null,
     };
   } catch {
-    return { seller: null, lead: null };
+    return { seller: null, lead: null, sellerId: null, sellerApproved: false, runId: null };
   }
 }
 
@@ -69,10 +77,19 @@ export function fromStoredSeller(stored: StoredSeller | null): SellerProfile | n
   };
 }
 
-function writeStored(seller: SellerProfile | null, lead: LeadTarget | null) {
+function writeStored(
+  seller: SellerProfile | null,
+  lead: LeadTarget | null,
+  sellerId: string | null,
+  sellerApproved: boolean,
+  runId: string | null,
+) {
   const payload: StoredSession = {
     seller: toStoredSeller(seller),
     lead,
+    sellerId,
+    sellerApproved,
+    runId,
   };
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 }
@@ -80,8 +97,13 @@ function writeStored(seller: SellerProfile | null, lead: LeadTarget | null) {
 type SessionValue = {
   seller: SellerProfile | null;
   lead: LeadTarget | null;
+  sellerId: string | null;
+  sellerApproved: boolean;
+  runId: string | null;
   setSeller: (seller: SellerProfile) => void;
+  setSellerRecord: (sellerId: string, approved: boolean) => void;
   setLead: (lead: LeadTarget) => void;
+  setRunId: (runId: string | null) => void;
   resetLead: () => void;
 };
 
@@ -93,27 +115,79 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     fromStoredSeller(initial.seller),
   );
   const [lead, setLeadState] = useState<LeadTarget | null>(() => initial.lead);
+  const [sellerId, setSellerIdState] = useState<string | null>(() => initial.sellerId);
+  const [sellerApproved, setSellerApprovedState] = useState(initial.sellerApproved);
+  const [runId, setRunIdState] = useState<string | null>(() => initial.runId);
 
   const setSeller = useCallback((next: SellerProfile) => {
     setSellerState(next);
+    setSellerIdState(null);
+    setSellerApprovedState(false);
+    setRunIdState(null);
     setLeadState((currentLead) => {
-      writeStored(next, currentLead);
+      writeStored(next, currentLead, null, false, null);
       return currentLead;
+    });
+  }, []);
+
+  const setSellerRecord = useCallback((nextId: string, approved: boolean) => {
+    setSellerIdState(nextId);
+    setSellerApprovedState(approved);
+    setSellerState((currentSeller) => {
+      setLeadState((currentLead) => {
+        setRunIdState((currentRun) => {
+          writeStored(currentSeller, currentLead, nextId, approved, currentRun);
+          return currentRun;
+        });
+        return currentLead;
+      });
+      return currentSeller;
     });
   }, []);
 
   const setLead = useCallback((next: LeadTarget) => {
     setLeadState(next);
+    setRunIdState(null);
     setSellerState((currentSeller) => {
-      writeStored(currentSeller, next);
+      setSellerIdState((currentId) => {
+        setSellerApprovedState((approved) => {
+          writeStored(currentSeller, next, currentId, approved, null);
+          return approved;
+        });
+        return currentId;
+      });
+      return currentSeller;
+    });
+  }, []);
+
+  const setRunId = useCallback((next: string | null) => {
+    setRunIdState(next);
+    setSellerState((currentSeller) => {
+      setLeadState((currentLead) => {
+        setSellerIdState((currentId) => {
+          setSellerApprovedState((approved) => {
+            writeStored(currentSeller, currentLead, currentId, approved, next);
+            return approved;
+          });
+          return currentId;
+        });
+        return currentLead;
+      });
       return currentSeller;
     });
   }, []);
 
   const resetLead = useCallback(() => {
     setLeadState(null);
+    setRunIdState(null);
     setSellerState((currentSeller) => {
-      writeStored(currentSeller, null);
+      setSellerIdState((currentId) => {
+        setSellerApprovedState((approved) => {
+          writeStored(currentSeller, null, currentId, approved, null);
+          return approved;
+        });
+        return currentId;
+      });
       return currentSeller;
     });
   }, []);
@@ -122,11 +196,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     () => ({
       seller,
       lead,
+      sellerId,
+      sellerApproved,
+      runId,
       setSeller,
+      setSellerRecord,
       setLead,
+      setRunId,
       resetLead,
     }),
-    [seller, lead, setSeller, setLead, resetLead],
+    [
+      seller,
+      lead,
+      sellerId,
+      sellerApproved,
+      runId,
+      setSeller,
+      setSellerRecord,
+      setLead,
+      setRunId,
+      resetLead,
+    ],
   );
 
   return (

@@ -1,4 +1,11 @@
-import { Link, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet } from "react-router-dom";
+
+const STEPS = [
+  { to: "/", label: "Your company" },
+  { to: "/profile", label: "Approve profile" },
+  { to: "/lead", label: "Lead" },
+  { to: "/run", label: "Report" },
+];
 
 export function Shell() {
   return (
@@ -7,7 +14,13 @@ export function Shell() {
         <Link to="/" className="wordmark">
           Excon
         </Link>
-        <span className="topbar-note">Sales intelligence</span>
+        <nav className="step-nav" aria-label="Workflow">
+          {STEPS.map((step) => (
+            <NavLink key={step.to} to={step.to} end={step.to === "/"}>
+              {step.label}
+            </NavLink>
+          ))}
+        </nav>
       </header>
       <Outlet />
     </div>
