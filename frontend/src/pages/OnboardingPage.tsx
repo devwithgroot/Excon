@@ -1,6 +1,22 @@
 import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { startExtraction } from "../api";
 import { useSession } from "../session";
+
+const ACCEPTED = ".pdf,.docx,.pptx,.xlsx,.txt,.md,.csv,.json,.html,.htm";
+const SUPPORTED = /\.(pdf|docx|pptx|xlsx|txt|md|markdown|csv|json|html|htm)$/i;
+const MAX_FILES = 10;
+const MAX_BYTES = 10_000_000;
+
+function fileProblem(file: File): string | null {
+  if (/\.(doc|ppt|xls)$/i.test(file.name)) {
+    return "Legacy Office format: save it as .docx, .pptx, .xlsx or PDF.";
+  }
+  if (!SUPPORTED.test(file.name)) return "Unsupported file type.";
+  if (file.size === 0) return "File is empty.";
+  if (file.size > MAX_BYTES) return "File is larger than 10 MB.";
+  return null;
+}
 
 const FEATURES = [
   {
@@ -22,35 +38,51 @@ const FEATURES = [
 ];
 
 export function OnboardingPage() {
-  const { seller, setSeller } = useSession();
+  const { seller, startOnboarding } = useSession();
   const navigate = useNavigate();
   const [name, setName] = useState(seller?.name ?? "");
   const [companyName, setCompanyName] = useState(seller?.companyName ?? "");
   const [companyWebsite, setCompanyWebsite] = useState(
     seller?.companyWebsite ?? "",
   );
-  const [documents, setDocuments] = useState<File[]>(seller?.documents ?? []);
+  const [documents, setDocuments] = useState<File[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function onFiles(list: FileList | null) {
     if (!list) return;
-    setDocuments((current) => [...current, ...Array.from(list)]);
+    setDocuments((current) => [...current, ...Array.from(list)].slice(0, MAX_FILES));
   }
 
   function removeFile(index: number) {
     setDocuments((current) => current.filter((_, i) => i !== index));
   }
 
-  function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent) {
     event.preventDefault();
     const site = companyWebsite.trim();
     const website = /^https?:\/\//i.test(site) ? site : `https://${site}`;
-    setSeller({
+    const identity = {
       name: name.trim(),
       companyName: companyName.trim(),
       companyWebsite: website,
-      documents,
-    });
-    navigate("/profile");
+    };
+    setSubmitting(true);
+    setError(null);
+    try {
+      const job = await startExtraction({
+        name: identity.name,
+        company_name: identity.companyName,
+        website_url: identity.companyWebsite,
+        files: documents.filter((file) => file.size <= MAX_BYTES),
+      });
+      startOnboarding(identity, job.seller_id, job.job_id);
+      navigate("/profile");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start the extraction");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -123,30 +155,38 @@ export function OnboardingPage() {
             <input
               type="file"
               multiple
-              accept=".pdf,.doc,.docx,.txt,.md"
+              accept={ACCEPTED}
               onChange={(e) => {
                 onFiles(e.target.files);
                 e.target.value = "";
               }}
             />
-            Drop pitch decks, one-pagers, or ICP notes — or click to browse.
+            Drop pitch decks, brochures, one-pagers, or ICP notes — or click to browse.
+            <span className="hint">PDF, DOCX, PPTX, XLSX, TXT, MD, CSV, JSON, HTML · up to {MAX_FILES} files, 10 MB each</span>
           </label>
           {documents.length > 0 ? (
             <ul className="file-list">
-              {documents.map((file, index) => (
-                <li key={`${file.name}-${index}`}>
-                  <span>{file.name}</span>
-                  <button type="button" onClick={() => removeFile(index)}>
-                    Remove
-                  </button>
-                </li>
-              ))}
+              {documents.map((file, index) => {
+                const problem = fileProblem(file);
+                return (
+                  <li key={`${file.name}-${index}`} data-state={problem ? "missing" : undefined}>
+                    <span>
+                      {file.name}
+                      {problem ? <em className="file-problem"> — {problem} It will not be read.</em> : null}
+                    </span>
+                    <button type="button" onClick={() => removeFile(index)}>
+                      Remove
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           ) : null}
         </div>
 
-        <button className="primary" type="submit">
-          Review and approve profile
+        {error ? <p className="error-line">{error}</p> : null}
+        <button className="primary" type="submit" disabled={submitting}>
+          {submitting ? "Uploading…" : "Build my company profile"}
         </button>
       </form>
     </main>

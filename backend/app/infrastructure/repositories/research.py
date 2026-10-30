@@ -25,32 +25,15 @@ class ResearchStore:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def upsert_seller(
+    def create_seller(
         self,
         *,
         company_name: str,
         name: str | None = None,
         website_url: str | None = None,
-        profile: dict | None = None,
     ) -> Seller:
-        seller = self.session.scalar(select(Seller).where(Seller.company_name == company_name))
-        if seller is None:
-            seller = Seller(
-                company_name=company_name,
-                name=name,
-                website_url=website_url,
-                profile=profile or {},
-            )
-            self.session.add(seller)
-            self.session.flush()
-            return seller
-        if name:
-            seller.name = name
-        if website_url:
-            seller.website_url = website_url
-        if profile is not None:
-            seller.profile = profile
-        seller.updated_at = datetime.now(timezone.utc)
+        seller = Seller(company_name=company_name, name=name, website_url=website_url, profile={})
+        self.session.add(seller)
         self.session.flush()
         return seller
 
@@ -90,17 +73,6 @@ class ResearchStore:
 
     def get_seller(self, seller_id: str) -> Seller | None:
         return self.session.get(Seller, seller_id)
-
-    def save_seller_profile(self, seller_id: str, profile: SellerProfile) -> None:
-        seller = self.session.get(Seller, seller_id)
-        if seller is None:
-            return
-        dumped = profile.model_dump(mode="json")
-        dumped["status"] = "draft"
-        seller.profile = dumped
-        seller.status = "draft" if not seller.approved_profile else seller.status
-        seller.updated_at = datetime.now(timezone.utc)
-        self.session.flush()
 
     def save_seller_draft(self, seller: Seller, profile: SellerProfile) -> Seller:
         dumped = profile.model_dump(mode="json")

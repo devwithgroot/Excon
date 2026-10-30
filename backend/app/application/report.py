@@ -6,7 +6,7 @@ from uuid import uuid4
 from app.application.scoring import product_matches, score_research
 from app.domain.collected_research import CollectedResearch, ParameterStatus
 from app.domain.report import LeadReportBody, ProductMatch
-from app.domain.seller_profile import SellerProfile
+from app.domain.seller_profile import SellerProfile, offerings_text
 
 
 def _supported_signals(collected: CollectedResearch) -> list[str]:
@@ -32,9 +32,9 @@ def _template_report(
     size = collected.company.size.value
     hq = collected.company.headquarters.value
     seller_name = seller.company_name if seller else "Your company"
-    offerings = ", ".join(part for part in ((seller.products if seller else None), (seller.services if seller else None)) if part)
-    icp = seller.icp.target_industries if seller else None
-    problems = seller.problems_solved if seller else None
+    offerings = offerings_text(seller)
+    icp = ", ".join(seller.icp.target_industries) if seller else None
+    problems = "; ".join(seller.problems_solved) if seller else None
 
     identity = lead
     if industry:
@@ -85,9 +85,9 @@ def _template_report(
             f"No specific overlap found between “{offerings}” and {lead}’s industry/description."
         )
     if seller and seller.limitations:
-        why_not.append(f"You said you are not a fit when: {seller.limitations}")
+        why_not.append(f"You said you are not a fit when: {'; '.join(seller.limitations)}")
     if seller and seller.icp.exclusions:
-        why_not.append(f"Your ICP exclusions: {seller.icp.exclusions}")
+        why_not.append(f"Your ICP exclusions: {'; '.join(seller.icp.exclusions)}")
     for name, field in collected.company:
         if name in {"industry", "products", "size", "headquarters"} and (
             field.status != ParameterStatus.supported or not field.value

@@ -1,8 +1,11 @@
 from datetime import datetime
 from enum import Enum
+from typing import Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
+
+Support = Literal["explicit", "inferred"]
 
 
 class SourceType(str, Enum):
@@ -31,3 +34,7 @@ class EvidenceItem(BaseModel):
     extraction_method: str = "provider"
     confidence: float = Field(default=0.5, ge=0, le=1)
     freshness: Freshness = Freshness.unknown
+    source_id: str | None = None
+    source_title: str | None = None
+    section_reference: str | None = None
+    support: Support = "explicit"

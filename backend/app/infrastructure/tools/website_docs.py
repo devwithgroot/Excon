@@ -419,7 +419,13 @@ def extract_pdf_text(raw: bytes) -> str:
     return re.sub(r"\s+", " ", " ".join(pages)).strip()
 
 
-async def fetch_public_text(url: str, *, timeout: float, max_bytes: int) -> str:
+async def fetch_public_text(
+    url: str,
+    *,
+    timeout: float,
+    max_bytes: int,
+    allowed_types: set[str] | frozenset[str] = frozenset(SAFE_CONTENT_TYPES),
+) -> str:
     if not await asyncio.to_thread(url_is_public_http, url):
         raise ValueError("blocked_url")
     current = url
@@ -439,7 +445,7 @@ async def fetch_public_text(url: str, *, timeout: float, max_bytes: int) -> str:
                 continue
             response.raise_for_status()
             content_type = (response.headers.get("content-type") or "").split(";")[0].strip().lower()
-            if content_type not in SAFE_CONTENT_TYPES:
+            if content_type not in allowed_types:
                 raise ValueError("unsupported_type")
             body = response.content[: max_bytes + 1]
             if len(body) > max_bytes:

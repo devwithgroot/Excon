@@ -7,11 +7,10 @@ import {
   type ReactNode,
 } from "react";
 
-export type SellerProfile = {
+export type SellerIdentity = {
   name: string;
   companyName: string;
   companyWebsite: string;
-  documents: File[];
 };
 
 export type LeadTarget = {
@@ -20,87 +19,54 @@ export type LeadTarget = {
   companyDomain?: string;
 };
 
-export type StoredSeller = {
-  name: string;
-  companyName: string;
-  companyWebsite: string;
-  documentNames: string[];
-};
-
 export type StoredSession = {
-  seller: StoredSeller | null;
-  lead: LeadTarget | null;
+  seller: SellerIdentity | null;
   sellerId: string | null;
+  jobId: string | null;
   sellerApproved: boolean;
+  lead: LeadTarget | null;
   runId: string | null;
 };
 
 const STORAGE_KEY = "excon-session";
 
+const EMPTY: StoredSession = {
+  seller: null,
+  sellerId: null,
+  jobId: null,
+  sellerApproved: false,
+  lead: null,
+  runId: null,
+};
+
 export function readStored(): StoredSession {
-  if (typeof window === "undefined") {
-    return { seller: null, lead: null, sellerId: null, sellerApproved: false, runId: null };
-  }
+  if (typeof window === "undefined") return EMPTY;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { seller: null, lead: null, sellerId: null, sellerApproved: false, runId: null };
-    const parsed = JSON.parse(raw) as StoredSession;
+    if (!raw) return EMPTY;
+    const parsed = JSON.parse(raw) as Partial<StoredSession>;
+    const seller = parsed.seller
+      ? {
+          name: parsed.seller.name ?? "",
+          companyName: parsed.seller.companyName ?? "",
+          companyWebsite: parsed.seller.companyWebsite ?? "",
+        }
+      : null;
     return {
-      seller: parsed.seller ?? null,
-      lead: parsed.lead ?? null,
+      seller,
       sellerId: parsed.sellerId ?? null,
+      jobId: parsed.jobId ?? null,
       sellerApproved: parsed.sellerApproved ?? false,
+      lead: parsed.lead ?? null,
       runId: parsed.runId ?? null,
     };
   } catch {
-    return { seller: null, lead: null, sellerId: null, sellerApproved: false, runId: null };
+    return EMPTY;
   }
 }
 
-function toStoredSeller(seller: SellerProfile | null): StoredSeller | null {
-  if (!seller) return null;
-  return {
-    name: seller.name,
-    companyName: seller.companyName,
-    companyWebsite: seller.companyWebsite,
-    documentNames: seller.documents.map((file) => file.name),
-  };
-}
-
-export function fromStoredSeller(stored: StoredSeller | null): SellerProfile | null {
-  if (!stored) return null;
-  return {
-    name: stored.name,
-    companyName: stored.companyName,
-    companyWebsite: stored.companyWebsite,
-    documents: [],
-  };
-}
-
-function writeStored(
-  seller: SellerProfile | null,
-  lead: LeadTarget | null,
-  sellerId: string | null,
-  sellerApproved: boolean,
-  runId: string | null,
-) {
-  const payload: StoredSession = {
-    seller: toStoredSeller(seller),
-    lead,
-    sellerId,
-    sellerApproved,
-    runId,
-  };
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-}
-
-type SessionValue = {
-  seller: SellerProfile | null;
-  lead: LeadTarget | null;
-  sellerId: string | null;
-  sellerApproved: boolean;
-  runId: string | null;
-  setSeller: (seller: SellerProfile) => void;
+type SessionValue = StoredSession & {
+  startOnboarding: (seller: SellerIdentity, sellerId: string, jobId: string) => void;
   setSellerRecord: (sellerId: string, approved: boolean) => void;
   setLead: (lead: LeadTarget) => void;
   setRunId: (runId: string | null) => void;
@@ -110,118 +76,56 @@ type SessionValue = {
 const SessionContext = createContext<SessionValue | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const initial = readStored();
-  const [seller, setSellerState] = useState<SellerProfile | null>(() =>
-    fromStoredSeller(initial.seller),
+  const [state, setState] = useState<StoredSession>(readStored);
+
+  const update = useCallback((change: (current: StoredSession) => StoredSession) => {
+    setState((current) => {
+      const next = change(current);
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const startOnboarding = useCallback(
+    (seller: SellerIdentity, sellerId: string, jobId: string) =>
+      update((current) => ({
+        ...current,
+        seller,
+        sellerId,
+        jobId,
+        sellerApproved: false,
+        runId: null,
+      })),
+    [update],
   );
-  const [lead, setLeadState] = useState<LeadTarget | null>(() => initial.lead);
-  const [sellerId, setSellerIdState] = useState<string | null>(() => initial.sellerId);
-  const [sellerApproved, setSellerApprovedState] = useState(initial.sellerApproved);
-  const [runId, setRunIdState] = useState<string | null>(() => initial.runId);
 
-  const setSeller = useCallback((next: SellerProfile) => {
-    setSellerState(next);
-    setSellerIdState(null);
-    setSellerApprovedState(false);
-    setRunIdState(null);
-    setLeadState((currentLead) => {
-      writeStored(next, currentLead, null, false, null);
-      return currentLead;
-    });
-  }, []);
+  const setSellerRecord = useCallback(
+    (sellerId: string, approved: boolean) =>
+      update((current) => ({ ...current, sellerId, sellerApproved: approved })),
+    [update],
+  );
 
-  const setSellerRecord = useCallback((nextId: string, approved: boolean) => {
-    setSellerIdState(nextId);
-    setSellerApprovedState(approved);
-    setSellerState((currentSeller) => {
-      setLeadState((currentLead) => {
-        setRunIdState((currentRun) => {
-          writeStored(currentSeller, currentLead, nextId, approved, currentRun);
-          return currentRun;
-        });
-        return currentLead;
-      });
-      return currentSeller;
-    });
-  }, []);
+  const setLead = useCallback(
+    (lead: LeadTarget) => update((current) => ({ ...current, lead, runId: null })),
+    [update],
+  );
 
-  const setLead = useCallback((next: LeadTarget) => {
-    setLeadState(next);
-    setRunIdState(null);
-    setSellerState((currentSeller) => {
-      setSellerIdState((currentId) => {
-        setSellerApprovedState((approved) => {
-          writeStored(currentSeller, next, currentId, approved, null);
-          return approved;
-        });
-        return currentId;
-      });
-      return currentSeller;
-    });
-  }, []);
+  const setRunId = useCallback(
+    (runId: string | null) => update((current) => ({ ...current, runId })),
+    [update],
+  );
 
-  const setRunId = useCallback((next: string | null) => {
-    setRunIdState(next);
-    setSellerState((currentSeller) => {
-      setLeadState((currentLead) => {
-        setSellerIdState((currentId) => {
-          setSellerApprovedState((approved) => {
-            writeStored(currentSeller, currentLead, currentId, approved, next);
-            return approved;
-          });
-          return currentId;
-        });
-        return currentLead;
-      });
-      return currentSeller;
-    });
-  }, []);
-
-  const resetLead = useCallback(() => {
-    setLeadState(null);
-    setRunIdState(null);
-    setSellerState((currentSeller) => {
-      setSellerIdState((currentId) => {
-        setSellerApprovedState((approved) => {
-          writeStored(currentSeller, null, currentId, approved, null);
-          return approved;
-        });
-        return currentId;
-      });
-      return currentSeller;
-    });
-  }, []);
+  const resetLead = useCallback(
+    () => update((current) => ({ ...current, lead: null, runId: null })),
+    [update],
+  );
 
   const value = useMemo(
-    () => ({
-      seller,
-      lead,
-      sellerId,
-      sellerApproved,
-      runId,
-      setSeller,
-      setSellerRecord,
-      setLead,
-      setRunId,
-      resetLead,
-    }),
-    [
-      seller,
-      lead,
-      sellerId,
-      sellerApproved,
-      runId,
-      setSeller,
-      setSellerRecord,
-      setLead,
-      setRunId,
-      resetLead,
-    ],
+    () => ({ ...state, startOnboarding, setSellerRecord, setLead, setRunId, resetLead }),
+    [state, startOnboarding, setSellerRecord, setLead, setRunId, resetLead],
   );
 
-  return (
-    <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
-  );
+  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
 export function useSession() {

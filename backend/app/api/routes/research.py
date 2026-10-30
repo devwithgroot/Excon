@@ -68,12 +68,14 @@ async def create_research_run(body: CreateRunRequest) -> ResearchRunResponse:
             session.close()
         if seller is None:
             raise HTTPException(status_code=404, detail="Seller not found")
-        approved = seller.approved_profile or seller.profile
+        if not seller.approved_profile:
+            raise HTTPException(status_code=409, detail="Approve the seller profile before researching leads")
         seller_input = {
+            "seller_id": seller.id,
             "name": seller.name,
             "company_name": seller.company_name,
             "website_url": seller.website_url,
-            "approved_profile": approved,
+            "approved_profile": seller.approved_profile,
         }
     state = await run_research(
         ToolRequest(

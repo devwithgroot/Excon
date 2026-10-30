@@ -3,29 +3,18 @@ import { Link, Navigate, useLocation } from "react-router-dom";
 import {
   createResearchRun,
   createRunReport,
-  documentsFromFiles,
+  offeringNames,
   type FieldValue,
   type LeadReport,
   type ResearchRunResponse,
 } from "../api";
-import {
-  fromStoredSeller,
-  readStored,
-  useSession,
-  type LeadTarget,
-  type SellerProfile,
-} from "../session";
+import { useSession, type LeadTarget, type SellerIdentity } from "../session";
 
 const STEPS = [
   {
-    id: "seller-data",
-    title: "Collecting your data",
-    detail: "Reading the company site and any documents you attached.",
-  },
-  {
-    id: "seller-summary",
-    title: "Summarizing your profile",
-    detail: "Products, positioning, and who you typically sell to.",
+    id: "seller-profile",
+    title: "Loading your approved profile",
+    detail: "Offerings, ICP and accepted prospect types you approved.",
   },
   {
     id: "lead-data",
@@ -42,7 +31,7 @@ const STEPS = [
 type StepState = "pending" | "running" | "done" | "error";
 
 type RunLocationState = {
-  seller?: SellerProfile;
+  seller?: SellerIdentity;
   lead?: LeadTarget;
 };
 
@@ -64,12 +53,9 @@ export function RunPage() {
   const session = useSession();
   const location = useLocation();
   const navState = (location.state ?? {}) as RunLocationState;
-  const stored = readStored();
-  const seller =
-    session.seller ??
-    navState.seller ??
-    fromStoredSeller(stored.seller);
-  const lead = session.lead ?? navState.lead ?? stored.lead;
+  const seller = session.seller ?? navState.seller ?? null;
+  const lead = session.lead ?? navState.lead ?? null;
+  const sellerId = session.sellerId;
   const [statuses, setStatuses] = useState<StepState[]>(
     STEPS.map((_, index) => (index === 0 ? "running" : "pending")),
   );
@@ -78,9 +64,9 @@ export function RunPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!seller || !lead) return;
-    const currentSeller = seller;
+    if (!seller || !lead || !sellerId || !session.sellerApproved) return;
     const currentLead = lead;
+    const currentSellerId = sellerId;
     let cancelled = false;
     const started = Date.now();
 
@@ -101,22 +87,13 @@ export function RunPage() {
 
     async function run() {
       try {
-        const documents = await documentsFromFiles(currentSeller.documents);
         const payload = await createResearchRun({
           lead: {
             company_name: currentLead.companyName,
             website_url: currentLead.companyWebsite,
             company_domain: currentLead.companyDomain,
           },
-          seller: session.sellerId
-            ? undefined
-            : {
-                name: currentSeller.name,
-                company_name: currentSeller.companyName,
-                website_url: currentSeller.companyWebsite,
-                documents,
-              },
-          seller_id: session.sellerId ?? undefined,
+          seller_id: currentSellerId,
         });
         if (cancelled) return;
         session.setRunId(payload.run_id);
@@ -142,7 +119,7 @@ export function RunPage() {
       cancelled = true;
       window.clearInterval(tick);
     };
-  }, [seller, lead, session.sellerId, session.setRunId]);
+  }, [seller, lead, sellerId, session.sellerApproved, session.setRunId]);
 
   const collected = result?.collected;
   const companyEntries = useMemo(
@@ -154,7 +131,7 @@ export function RunPage() {
     [collected],
   );
 
-  if (seller && !session.sellerApproved) {
+  if (seller && (!session.sellerApproved || !sellerId)) {
     return <Navigate to="/profile" replace />;
   }
 
@@ -177,6 +154,7 @@ export function RunPage() {
   const complete = statuses.every((status) => status === "done") && result;
   const activeIndex = statuses.findIndex((status) => status === "running");
   const profile = result?.seller_profile;
+  const offerings = profile ? offeringNames(profile) : [];
 
   return (
     <main className="run">
@@ -310,13 +288,13 @@ export function RunPage() {
               <h3>Your company</h3>
               {profile ? (
                 <ul className="facts">
-                  <li data-state={profile.products ? "supported" : "missing"}>
-                    <strong>products</strong>
-                    <span>{profile.products || "Not extracted this run"}</span>
+                  <li data-state={offerings.length ? "supported" : "missing"}>
+                    <strong>offerings</strong>
+                    <span>{offerings.join(", ") || "None in the approved profile"}</span>
                   </li>
                   <li data-state={profile.description ? "supported" : "missing"}>
                     <strong>description</strong>
-                    <span>{profile.description || "Not extracted this run"}</span>
+                    <span>{profile.description || "Not in the approved profile"}</span>
                   </li>
                 </ul>
               ) : (

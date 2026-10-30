@@ -257,7 +257,7 @@ def compose_person_draft(
 
     bullets = "\n".join(f"• {fact}" for fact in facts[:4]) or f"• Public description of {lead}"
     who = seller.description if seller and seller.description else None
-    problems = seller.problems_solved if seller else None
+    problems = "; ".join(seller.problems_solved) if seller else None
     intro = f"I'm {sender} at {seller_name}."
     if who:
         intro += f" {who[:180]}"

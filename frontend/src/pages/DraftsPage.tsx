@@ -145,10 +145,11 @@ export function DraftsPage() {
 
   useEffect(() => {
     if (!runId) return;
+    const activeRun = runId;
     let cancelled = false;
     async function load() {
       try {
-        const existing = await listRunDrafts(runId);
+        const existing = await listRunDrafts(activeRun);
         if (cancelled) return;
         if (existing.drafts.length) {
           setDrafts(existing.drafts);
@@ -157,7 +158,7 @@ export function DraftsPage() {
           return;
         }
         setGenerating(true);
-        const created = await generateRunDrafts(runId);
+        const created = await generateRunDrafts(activeRun);
         if (cancelled) return;
         setDrafts(created.drafts);
         setSkipped(created.skipped);

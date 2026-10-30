@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 from typing_extensions import TypedDict
 
 from app.application.gap_judge import judge_gaps, retry_decision
-from app.application.seller_extract import domain_from_url, seller_profile_from_patch
+from app.application.seller_intel.profile_builder import domain_from_url, minimal_profile
 from app.config import get_settings
 from app.domain.collected_research import CollectedResearch
 from app.domain.gap import GapDecision, GapVerdict
@@ -137,16 +137,16 @@ def build_research_graph(
         try:
             seller = None
             seller_input = state.get("seller_input") or {}
-            if seller_input.get("company_name"):
-                draft = None
-                if not seller_input.get("approved_profile"):
-                    draft = seller_profile_from_patch(seller_input).model_dump(mode="json")
-                seller = store.upsert_seller(
+            if seller_input.get("seller_id"):
+                seller = store.get_seller(seller_input["seller_id"])
+            elif seller_input.get("company_name"):
+                seller = store.create_seller(
                     company_name=seller_input["company_name"],
                     name=seller_input.get("name"),
                     website_url=seller_input.get("website_url"),
-                    profile=draft,
                 )
+                profile = seller_input.get("approved_profile") or minimal_profile(seller_input).model_dump(mode="json")
+                seller.profile = profile
             lead = store.create_lead(
                 company_name=state["company_name"],
                 domain=state.get("company_domain"),
@@ -178,47 +178,7 @@ def build_research_graph(
             return {"seller_profile": dumped}
         if not seller_input.get("company_name"):
             return {"seller_profile": None}
-        has_context = bool(seller_input.get("website_url")) or any(
-            (doc.get("text") if isinstance(doc, dict) else getattr(doc, "text", None))
-            for doc in seller_input.get("documents") or []
-        )
-        patch = None
-        if has_context and "website_docs" in tools_by_name:
-            docs = []
-            for item in seller_input.get("documents") or []:
-                if isinstance(item, dict) and (item.get("text") or item.get("filename")):
-                    docs.append(
-                        {
-                            "filename": item.get("filename") or "upload.txt",
-                            "text": item.get("text") or "",
-                        }
-                    )
-            raw = await tools_by_name["website_docs"].ainvoke(
-                {
-                    "company_name": seller_input["company_name"],
-                    "company_domain": seller_input.get("company_domain") or domain_from_url(seller_input.get("website_url")) or "",
-                    "website_url": seller_input.get("website_url") or "",
-                    "documents": docs,
-                }
-            )
-            payload = json.loads(raw) if isinstance(raw, str) else raw
-            patch = CollectedResearch.model_validate((payload or {}).get("patch") or {})
-        profile = seller_profile_from_patch(seller_input, patch)
-        dumped = profile.model_dump(mode="json")
-        if session_factory is not None and state.get("seller_id"):
-            session, store = _open_store()
-            assert store is not None
-            try:
-                store.save_seller_profile(state["seller_id"], profile)
-                run = store.get_run(state["run_id"]) if state.get("run_id") else None
-                if run is not None:
-                    run.seller_profile = dumped
-                session.commit()
-            except Exception:
-                session.rollback()
-            finally:
-                session.close()
-        return {"seller_profile": dumped}
+        return {"seller_profile": minimal_profile(seller_input).model_dump(mode="json")}
 
     async def plan_or_llm(state: ResearchState) -> dict:
         collected = CollectedResearch.model_validate(state["collected"])

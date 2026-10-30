@@ -17,6 +17,9 @@ htmlcov/
 .env.*
 !.env.example
 
+# Uploaded seller documents (local runs)
+backend/uploads/
+
 # Node
 node_modules/
 frontend/dist/

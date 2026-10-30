@@ -28,6 +28,7 @@ services:
       DATABASE_URL: postgresql+psycopg://excon:excon@db:5432/excon
       CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
       API_RELOAD: "true"
+      UPLOAD_DIR: /data/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -36,6 +37,7 @@ services:
     volumes:
       - ./backend:/app
       - ./backend/docker-entrypoint.sh:/entrypoint.sh
+      - excon_uploads:/data/uploads
 
   web:
     build:
@@ -53,3 +55,4 @@ services:
 
 volumes:
   excon_pgdata:
+  excon_uploads:

@@ -4,7 +4,7 @@ import re
 
 from app.domain.collected_research import CollectedResearch, FieldValue, ParameterStatus
 from app.domain.report import LeadScores, ProductMatch, ScoreBreakdown
-from app.domain.seller_profile import SellerProfile
+from app.domain.seller_profile import SellerProfile, accepted_suggestions, offering_names, profile_text
 
 STOP = {
     "that",
@@ -102,27 +102,49 @@ def _value(collected: CollectedResearch, key: str) -> str:
 
 
 def _seller_blob(profile: SellerProfile | None) -> str:
+    return profile_text(profile)
+
+
+def _offering_blobs(profile: SellerProfile | None) -> list[tuple[str, str]]:
+    """(offering name, text to match): a bare product name rarely overlaps lead evidence."""
     if profile is None:
-        return ""
-    icp = profile.icp
-    return " ".join(
-        part
-        for part in (
-            profile.products,
-            profile.services,
-            profile.features,
-            profile.problems_solved,
-            profile.differentiators,
-            profile.industry,
-            profile.description,
-            icp.target_industries,
-            icp.problems,
-            icp.buying_signals,
-            icp.preferred,
-            icp.departments_roles,
+        return []
+    excerpts = {item.evidence_id: item.supporting_excerpt for item in profile.evidence}
+    accepted = accepted_suggestions(profile)
+
+    def context(name: str, evidence_ids: list[str]) -> list[str]:
+        parts = [excerpts.get(evidence_id, "") for evidence_id in evidence_ids]
+        for suggestion in accepted:
+            if (suggestion.matching_offering or "").strip().lower() == name.strip().lower():
+                parts += [suggestion.prospect_type, suggestion.why_relevant, suggestion.problem_addressed or ""]
+        return parts
+
+    blobs: list[tuple[str, str]] = []
+    for product in profile.products:
+        text = " ".join(
+            [
+                product.name,
+                product.description or "",
+                *product.features,
+                *product.target_users,
+                *product.problems_solved,
+                *context(product.name, product.evidence_ids),
+            ]
         )
-        if part
-    )
+        blobs.append((product.name, text))
+    for service in profile.services:
+        text = " ".join(
+            [
+                service.name,
+                service.description or "",
+                service.target_customer or "",
+                service.business_outcome or "",
+                *service.use_cases,
+                *context(service.name, service.evidence_ids),
+            ]
+        )
+        blobs.append((service.name, text))
+    return blobs
 
 
 def _lead_blob(collected: CollectedResearch) -> str:
@@ -143,11 +165,7 @@ def _lead_blob(collected: CollectedResearch) -> str:
 
 
 def seller_offerings(profile: SellerProfile | None) -> list[str]:
-    if profile is None:
-        return []
-    raw = " | ".join(part for part in (profile.products, profile.services) if part)
-    parts = [item.strip() for item in re.split(r"[,;/|]", raw) if item.strip()]
-    return parts or ([raw] if raw else [])
+    return offering_names(profile)
 
 
 def score_research(collected: CollectedResearch, seller: SellerProfile | None) -> LeadScores:
@@ -198,11 +216,7 @@ def score_research(collected: CollectedResearch, seller: SellerProfile | None) -
     lead_tokens = _tokens(_lead_blob(collected))
     overlap = sorted(seller_tokens & lead_tokens)
     offerings = seller_offerings(seller)
-    product_hits = []
-    for offering in offerings:
-        hit = _tokens(offering) & lead_tokens
-        if hit:
-            product_hits.append(offering)
+    product_hits = [name for name, text in _offering_blobs(seller) if _tokens(text) & lead_tokens]
     if not seller or not seller_tokens:
         fit = 20
         fit_reasons = ["No approved seller offerings to compare, so fit stays low."]
@@ -215,7 +229,7 @@ def score_research(collected: CollectedResearch, seller: SellerProfile | None) -
         if product_hits:
             fit_reasons.append("Possible product matches: " + ", ".join(product_hits[:4]))
         fit_gaps = []
-        if seller.icp.exclusions and _tokens(seller.icp.exclusions) & lead_tokens:
+        if seller.icp.exclusions and _tokens(" ".join(seller.icp.exclusions)) & lead_tokens:
             fit = max(0, fit - 25)
             fit_gaps.append("Lead terms overlap the seller ICP exclusions.")
     else:
@@ -307,16 +321,16 @@ def product_matches(collected: CollectedResearch, seller: SellerProfile | None) 
     if seller is None:
         return []
     lead_tokens = _tokens(_lead_blob(collected))
-    matches: list[ProductMatch] = []
-    for offering in seller_offerings(seller):
-        hit = sorted(_tokens(offering) & lead_tokens)
+    scored: list[tuple[int, ProductMatch]] = []
+    for offering, text in _offering_blobs(seller):
+        hit = sorted(_tokens(text) & lead_tokens)
         if not hit:
             continue
-        matches.append(
-            ProductMatch(
-                offering=offering,
-                reason=f"Lead evidence mentions {', '.join(hit[:6])}.",
-                matched_lead_signals=hit[:8],
-            )
+        match = ProductMatch(
+            offering=offering,
+            reason=f"Lead evidence mentions {', '.join(hit[:6])}.",
+            matched_lead_signals=hit[:8],
         )
-    return matches
+        scored.append((len(hit), match))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [match for _, match in scored]

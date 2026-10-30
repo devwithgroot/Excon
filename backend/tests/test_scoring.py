@@ -57,3 +57,43 @@ def test_no_seller_offerings_stays_low_fit() -> None:
     scores = score_research(collected, None)
     assert scores.fit.score <= 30
     assert scores.recommendation == "deprioritize"
+
+
+def test_offering_match_uses_source_excerpts_and_accepted_suggestions() -> None:
+    from datetime import datetime, timezone
+
+    from app.application.scoring import product_matches
+    from app.domain.company_intelligence import ProspectSuggestion
+    from app.domain.evidence import EvidenceItem, SourceType
+
+    evidence = EvidenceItem(
+        evidence_id="ev-field",
+        field_key="seller.product",
+        extracted_value="FieldAXIS",
+        source_type=SourceType.website,
+        retrieved_at=datetime.now(timezone.utc),
+        supporting_excerpt="FieldAXIS is custom field software for the plywood and laminates trade.",
+    )
+    suggestion = ProspectSuggestion(
+        prospect_type="Interior materials manufacturers with dealer networks",
+        matching_offering="FieldAXIS",
+        status="accepted",
+    )
+    pending = ProspectSuggestion(prospect_type="Plywood laminates veneers interior", matching_offering="TezCafe")
+    seller = SellerProfile(
+        company_name="Tezbytes",
+        products=[
+            {"name": "TezCafe", "features": ["QR-based ordering for restaurants"]},
+            {"name": "FieldAXIS", "evidence_ids": ["ev-field"]},
+        ],
+        evidence=[evidence],
+        suggested_prospect_characteristics=[pending, suggestion],
+    )
+    collected = CollectedResearch(
+        company=CompanyBlock(
+            name=_supported("Greenply"),
+            description=_supported("Interior infrastructure brand making plywood, laminates and veneers for dealer networks"),
+        )
+    )
+    matches = product_matches(collected, seller)
+    assert [match.offering for match in matches] == ["FieldAXIS"], "pending suggestions never count"

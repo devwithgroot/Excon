@@ -6,6 +6,8 @@ export type FieldValue = {
   evidence_ids: string[];
 };
 
+export type Support = "explicit" | "inferred";
+
 export type EvidenceItem = {
   evidence_id: string;
   field_key: string;
@@ -14,6 +16,11 @@ export type EvidenceItem = {
   source_type: string;
   supporting_excerpt: string;
   freshness: string;
+  source_id?: string | null;
+  source_title?: string | null;
+  section_reference?: string | null;
+  confidence?: number | null;
+  support?: Support;
 };
 
 export type NewsItem = {
@@ -42,35 +49,165 @@ export type CollectedResearch = {
   evidence: EvidenceItem[];
 };
 
-export type SellerIcp = {
-  target_industries: string | null;
+export const ICP_LIST_FIELDS = [
+  "target_industries",
+  "geography",
+  "departments",
+  "decision_makers",
+  "customer_problems",
+  "pain_points",
+  "buying_signals",
+  "use_cases",
+  "preferred_characteristics",
+  "exclusions",
+  "disqualifiers",
+] as const;
+
+export type IcpListField = (typeof ICP_LIST_FIELDS)[number];
+
+export type SellerIcp = Record<IcpListField, string[]> & {
   company_size: string | null;
-  geography: string | null;
-  departments_roles: string | null;
-  problems: string | null;
-  buying_signals: string | null;
-  exclusions: string | null;
-  preferred: string | null;
 };
 
-export type SellerProfileOut = {
+export type ProductItem = {
+  name: string;
+  description?: string | null;
+  features?: string[];
+  target_users?: string[];
+  problems_solved?: string[];
+  business_value?: string | null;
+  evidence_ids?: string[];
+  support?: Support;
+};
+
+export type ServiceItem = {
+  name: string;
+  description?: string | null;
+  target_customer?: string | null;
+  business_outcome?: string | null;
+  use_cases?: string[];
+  evidence_ids?: string[];
+  support?: Support;
+};
+
+export type FieldTrace = {
+  evidence_ids: string[];
+  support: Support;
+  confidence: number | null;
+  edited?: boolean;
+};
+
+export type ProspectSuggestion = {
+  suggestion_id: string;
+  prospect_type: string;
+  why_relevant: string;
+  matching_offering: string | null;
+  problem_addressed: string | null;
+  decision_makers: string[];
+  buying_signals: string[];
+  evidence_ids: string[];
+  support: Support;
+  status: "pending" | "accepted" | "rejected";
+};
+
+export type ConflictValue = { value: string; evidence_ids: string[]; source_ids: string[] };
+
+export type Conflict = { field: string; values: ConflictValue[]; note: string };
+
+export type SourceSummary = {
+  source_id: string;
+  source_type: string;
+  name: string;
+  url: string | null;
+  status: string;
+  error: string | null;
+};
+
+export type ValidationIssue = {
+  field: string;
+  severity: "error" | "warning" | "info";
+  code: string;
+  message: string;
+  resolved: boolean;
+};
+
+export type ExtractionMetadata = {
+  job_id: string | null;
+  status: "complete" | "partial" | "failed" | "manual";
+  pipeline_version: string;
+  sources: SourceSummary[];
+  warnings: string[];
+  missing: string[];
+  conflicts: Conflict[];
+  validation: ValidationIssue[];
+  completeness: number;
+  completed_at: string | null;
+};
+
+export const PROFILE_LIST_FIELDS = [
+  "geography",
+  "features",
+  "problems_solved",
+  "differentiators",
+  "limitations",
+  "customer_segments",
+  "industries_served",
+  "use_cases",
+] as const;
+
+export type ProfileListField = (typeof PROFILE_LIST_FIELDS)[number];
+
+export type SellerProfileOut = Record<ProfileListField, string[]> & {
+  seller_id: string | null;
   company_name: string;
   contact_name: string | null;
   domain: string | null;
   website_url: string | null;
   industry: string | null;
+  sub_industry: string | null;
   description: string | null;
-  geography: string | null;
-  size: string | null;
-  products: string | null;
-  services: string | null;
-  features: string | null;
-  problems_solved: string | null;
-  differentiators: string | null;
-  limitations: string | null;
+  business_model: string | null;
+  market_positioning: string | null;
+  company_size: string | null;
+  value_proposition: string | null;
+  products: ProductItem[];
+  services: ServiceItem[];
   icp: SellerIcp;
+  suggested_prospect_characteristics: ProspectSuggestion[];
+  traces: Record<string, FieldTrace>;
+  evidence_ids: string[];
+  evidence: EvidenceItem[];
+  extraction_metadata: ExtractionMetadata;
   status: string;
   version: number;
+};
+
+export type DocumentStatus = {
+  document_id: string;
+  filename: string;
+  format: string;
+  size_bytes: number;
+  status: string;
+  error: string | null;
+  page_count: number | null;
+};
+
+export type ExtractionJob = {
+  job_id: string;
+  seller_id: string;
+  status: "queued" | "running" | "succeeded" | "partial" | "failed";
+  stage: string;
+  stage_label: string;
+  stage_index: number;
+  stage_total: number;
+  stages: string[];
+  detail: string | null;
+  error: string | null;
+  warnings: string[];
+  summary: Record<string, unknown>;
+  documents: DocumentStatus[];
+  created_at: string | null;
+  finished_at: string | null;
 };
 
 export type SellerResponse = {
@@ -79,7 +216,18 @@ export type SellerResponse = {
   approved_version: number;
   draft: SellerProfileOut;
   approved: SellerProfileOut | null;
+  job: ExtractionJob | null;
 };
+
+export type ExtractionStatus = ExtractionJob & { seller: SellerResponse | null };
+
+export function jobFinished(job: Pick<ExtractionJob, "status">): boolean {
+  return job.status === "succeeded" || job.status === "partial" || job.status === "failed";
+}
+
+export function offeringNames(profile: Pick<SellerProfileOut, "products" | "services">): string[] {
+  return [...profile.products, ...profile.services].map((item) => item.name);
+}
 
 export type ScoreBreakdown = {
   key: string;
@@ -169,11 +317,6 @@ export type ResearchRunResponse = {
   error: string | null;
 };
 
-export type DocumentPayload = {
-  filename: string;
-  text?: string;
-};
-
 let inflight: Promise<ResearchRunResponse> | null = null;
 
 async function fetchJson<T>(url: string, init?: RequestInit, timeoutMs = 20_000): Promise<T> {
@@ -194,53 +337,54 @@ async function fetchJson<T>(url: string, init?: RequestInit, timeoutMs = 20_000)
 
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const detail = await response.text();
+    const text = await response.text();
+    let detail = text;
+    try {
+      const parsed = JSON.parse(text) as { detail?: unknown };
+      if (typeof parsed.detail === "string") detail = parsed.detail;
+    } catch {
+      // not JSON; keep the raw body
+    }
     throw new Error(detail || `Request failed (${response.status})`);
   }
   return (await response.json()) as T;
 }
 
-export async function createSeller(body: {
-  name?: string;
+export async function startExtraction(body: {
+  name: string;
   company_name: string;
-  website_url?: string;
-  profile?: SellerProfileOut;
-}): Promise<SellerResponse> {
-  return fetchJson<SellerResponse>(`${API_URL}/sellers`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  website_url: string;
+  files: File[];
+}): Promise<ExtractionJob> {
+  const form = new FormData();
+  form.append("name", body.name);
+  form.append("company_name", body.company_name);
+  form.append("website_url", body.website_url);
+  for (const file of body.files) form.append("files", file, file.name);
+  return fetchJson<ExtractionJob>(
+    `${API_URL}/sellers/extract`,
+    { method: "POST", body: form },
+    120_000,
+  );
 }
 
-export async function extractSeller(body: {
-  name?: string;
-  company_name: string;
-  website_url?: string;
-  documents?: DocumentPayload[];
-}): Promise<SellerResponse> {
-  try {
-    return await fetchJson<SellerResponse>(
-      `${API_URL}/sellers/extract`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      },
-      22_000,
-    );
-  } catch (err) {
-    if (err instanceof Error && err.message.includes("timed out")) {
-      throw new Error(
-        "Website read timed out. Fill the profile yourself, then approve.",
-      );
-    }
-    throw err;
-  }
+export async function getExtraction(jobId: string): Promise<ExtractionStatus> {
+  return fetchJson<ExtractionStatus>(`${API_URL}/sellers/extract/${jobId}`);
 }
 
 export async function getSeller(sellerId: string): Promise<SellerResponse> {
   return fetchJson<SellerResponse>(`${API_URL}/sellers/${sellerId}`);
+}
+
+export async function setSuggestionStatus(
+  sellerId: string,
+  suggestionId: string,
+  action: "accept" | "reject",
+): Promise<SellerResponse> {
+  return fetchJson<SellerResponse>(
+    `${API_URL}/sellers/${sellerId}/suggestions/${suggestionId}/${action}`,
+    { method: "POST" },
+  );
 }
 
 export async function saveSellerDraft(
@@ -273,13 +417,7 @@ export async function createResearchRun(body: {
     company_domain?: string;
     website_url?: string;
   };
-  seller?: {
-    name?: string;
-    company_name: string;
-    website_url?: string;
-    documents?: DocumentPayload[];
-  };
-  seller_id?: string;
+  seller_id: string;
 }): Promise<ResearchRunResponse> {
   if (inflight) {
     return inflight;
@@ -330,17 +468,4 @@ export async function rejectOutreachDraft(draftId: string): Promise<OutreachDraf
   return fetchJson<OutreachDraft>(`${API_URL}/drafts/${draftId}/reject`, {
     method: "POST",
   });
-}
-
-export async function documentsFromFiles(files: File[]): Promise<DocumentPayload[]> {
-  const docs: DocumentPayload[] = [];
-  for (const file of files) {
-    const isText =
-      /\.(txt|md|csv|json)$/i.test(file.name) || file.type.startsWith("text/");
-    docs.push({
-      filename: file.name,
-      text: isText ? await file.text() : undefined,
-    });
-  }
-  return docs;
 }

@@ -186,12 +186,13 @@ async def test_seller_docs_do_not_leak_into_lead_company() -> None:
             "name": "Alex",
             "company_name": "Excon Seller Co",
             "website_url": "https://seller.example",
-            "documents": [{"filename": "pitch.txt", "text": "We sell a CRM for freight brokers."}],
+            "approved_profile": {"company_name": "Excon Seller Co", "products": "Seller CRM", "status": "approved"},
         },
     )
     collected = CollectedResearch.model_validate(state["collected"])
     profile = state["seller_profile"]
-    assert profile["products"] == "Seller CRM"
+    assert [item["name"] for item in profile["products"]] == ["Seller CRM"]
+    assert website.calls and all(call.company_name == "Acme" for call in website.calls), "seller site is never crawled by research"
     assert collected.company.products.value != "Seller CRM"
     assert collected.company.products.status != ParameterStatus.supported
     assert collected.company.name.value == "Acme"
@@ -201,7 +202,7 @@ async def test_seller_docs_do_not_leak_into_lead_company() -> None:
         seller = session.scalar(select(Seller).where(Seller.company_name == "Excon Seller Co"))
         run = session.get(ResearchRun, state["run_id"])
         assert seller is not None
-        assert seller.profile["products"] == "Seller CRM"
+        assert run.seller_profile["products"][0]["name"] == "Seller CRM"
         assert run is not None
         assert run.status in {"partial", "complete"}
         assert run.collected["company"]["products"]["value"] != "Seller CRM"
