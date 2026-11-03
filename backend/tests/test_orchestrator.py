@@ -212,6 +212,29 @@ async def test_seller_docs_do_not_leak_into_lead_company() -> None:
         session.close()
 
 
+class FailingModel:
+    """Simulates an unreachable MLX planner — the router must still run every tool."""
+
+    def bind_tools(self, tools):
+        return self
+
+    async def ainvoke(self, messages):
+        raise ConnectionError("mlx unreachable")
+
+
+async def test_planner_failure_falls_back_to_deterministic_router() -> None:
+    state = await run_research(
+        ToolRequest(company_name="Acme", company_domain="acme.example"),
+        model=FailingModel(),
+        registry=_base_registry(),
+    )
+    assert set(state["tools_used"]) == set(TOOL_NAMES)
+    assert state["status"] in {"partial", "complete", "running"} or state.get("collected")
+    collected = CollectedResearch.model_validate(state["collected"])
+    assert collected.company.name.value == "Acme"
+    assert collected.people[0].name == "Ada"
+
+
 async def test_run_row_exists_in_sqlite() -> None:
     factory = sqlite_session_factory()
     state = await run_research(

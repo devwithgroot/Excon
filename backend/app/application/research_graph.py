@@ -1,10 +1,11 @@
+"""Compatibility re-exports for the LangGraph research orchestrator."""
+
 from app.graphs.research import (
     ResearchState,
     build_research_graph,
     next_gap_tool,
     research_llm,
     run_research,
-    seller_profile_from_patch,
 )
 
 __all__ = [
@@ -13,5 +14,4 @@ __all__ = [
     "next_gap_tool",
     "research_llm",
     "run_research",
-    "seller_profile_from_patch",
 ]

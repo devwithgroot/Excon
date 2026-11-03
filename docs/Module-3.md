@@ -29,23 +29,25 @@ The model (MLX Qwen) still only **chooses tools** or **classifies a retry**. Too
 
 ## 2. End-to-end workflow
 
-Two jobs, one graph, one HTTP call:
+One graph, one research HTTP call (report is a second POST):
 
-1. **Seller context** — if the user sent a company name / site / docs, run `website_docs` on the *seller* and store a `SellerProfile`. That payload never merges into the lead’s `CollectedResearch`.
+1. **Seller context** — `POST /research/runs` with `seller_id` loads the **approved** `SellerProfile`. This path never crawls the seller site again. Unapproved sellers get **409**.
 2. **Lead research** — run the four tools on the lead, merge, persist, then gap-judge missing fields.
 
+Full walkthrough: [Lead-Research-Workflow.md](Lead-Research-Workflow.md).
+
 ```text
-React  /  →  /lead  →  /run
+React  /lead  →  /run
                     │
                     ▼
-         POST /research/runs     (FastAPI)
+         POST /research/runs     (FastAPI; requires approved seller_id)
                     │
                     ▼
          LangGraph StateGraph
            create_run            insert research_runs status=running
                 │
                 ▼
-           seller_profile        website_docs on SELLER (or name-only)
+           seller_profile        copy approved_profile into state (no seller crawl)
                 │
                 ▼
            plan_or_llm           MLX bind_tools  (or first_pass_router)

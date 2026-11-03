@@ -68,25 +68,11 @@ export function RunPage() {
     const currentLead = lead;
     const currentSellerId = sellerId;
     let cancelled = false;
-    const started = Date.now();
-
-    const tick = window.setInterval(() => {
-      const elapsed = Date.now() - started;
-      const index = Math.min(STEPS.length - 1, Math.floor(elapsed / 4000));
-      setStatuses((current) => {
-        if (current.every((status) => status === "done" || status === "error")) {
-          return current;
-        }
-        return STEPS.map((_, i) => {
-          if (i < index) return "done";
-          if (i === index) return "running";
-          return "pending";
-        });
-      });
-    }, 800);
 
     async function run() {
       try {
+        // Seller is already approved in session; research POST covers tools + gap retry.
+        setStatuses(["done", "running", "pending"]);
         const payload = await createResearchRun({
           lead: {
             company_name: currentLead.companyName,
@@ -98,26 +84,24 @@ export function RunPage() {
         if (cancelled) return;
         session.setRunId(payload.run_id);
         setResult(payload);
+        setStatuses(["done", "done", "running"]);
         try {
           const briefing = await createRunReport(payload.run_id);
           if (!cancelled) setReport(briefing);
         } catch {
           if (!cancelled) setReport(null);
         }
-        setStatuses(STEPS.map(() => "done"));
+        if (!cancelled) setStatuses(["done", "done", "done"]);
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : "Research failed");
-        setStatuses(STEPS.map((_, index) => (index === 0 ? "error" : "pending")));
-      } finally {
-        window.clearInterval(tick);
+        setStatuses(["done", "error", "pending"]);
       }
     }
 
     void run();
     return () => {
       cancelled = true;
-      window.clearInterval(tick);
     };
   }, [seller, lead, sellerId, session.sellerApproved, session.setRunId]);
 

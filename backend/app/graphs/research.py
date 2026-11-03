@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Annotated, Any, Literal
 from uuid import uuid4
@@ -25,6 +26,7 @@ from app.tools import TOOL_NAMES, research_tools
 
 os.environ.setdefault("LANGCHAIN_TRACING_V2", "false")
 
+logger = logging.getLogger(__name__)
 MAX_LLM_CALLS = 8
 
 SYSTEM = """You are the Excon research orchestrator.
@@ -191,7 +193,12 @@ def build_research_graph(
                 missing=", ".join(collected.missing_parameters()) or "(none)",
             )
         )
-        response = await bound.ainvoke([system, *state["messages"]])
+        try:
+            response = await bound.ainvoke([system, *state["messages"]])
+        except Exception as exc:
+            # MLX down or tool-calling failure: keep researching via the deterministic router.
+            logger.warning("plan_or_llm failed; falling back to first_pass_router: %s", exc)
+            response = AIMessage(content=f"planner_unavailable: {type(exc).__name__}")
         return {"messages": [response], "llm_calls": state.get("llm_calls", 0) + 1}
 
     async def tool_node(state: ResearchState) -> dict:
